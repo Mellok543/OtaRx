@@ -1,3 +1,4 @@
+using System.IO;
 using ElrsTtlBatchFlasher.Models;
 
 namespace ElrsTtlBatchFlasher.Services;
@@ -36,7 +37,7 @@ public sealed class BatchRunner
 
         while (!ct.IsCancellationRequested)
         {
-            _setStatus("Waiting for bootloader...", isError: false, isSuccess: false);
+            _setStatus("Waiting for bootloader...", false, false);
             _setProgress(5);
 
             var detected = await WaitForBootAsync(esptool, ct);
@@ -44,7 +45,7 @@ public sealed class BatchRunner
                 throw new TimeoutException("Bootloader not detected in time.");
 
             _log("Detected device. Flashing...");
-            _setStatus("Flashing...", isError: false, isSuccess: false);
+            _setStatus("Flashing...", false, false);
             _setProgress(35);
 
             Exception? lastErr = null;
@@ -57,7 +58,7 @@ public sealed class BatchRunner
                     _setOk(ok);
 
                     _setProgress(100);
-                    _setStatus("Done", isError: false, isSuccess: true);
+                    _setStatus("Done", false, true);
 
                     _log($"DONE #{ok}");
                     _log(Trim(output, 500));
@@ -71,7 +72,7 @@ public sealed class BatchRunner
                 catch (Exception ex)
                 {
                     lastErr = ex;
-                    _setStatus("Flash error", isError: true, isSuccess: false);
+                    _setStatus("Flash error", true, false);
                     _setProgress(0);
                     _log($"FLASH ERROR (attempt {attempt + 1}/{_cfg.RetryFlashCount + 1}):");
                     _log(Trim(ex.Message, 600));
