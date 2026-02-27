@@ -3,7 +3,7 @@ using System.Text;
 
 namespace ElrsTtlBatchFlasher.Services;
 
-public static class ProcessRunner
+public static class FlashRunner
 {
     public static async Task<(int exitCode, string stdout, string stderr)> RunAsync(
         string fileName,
