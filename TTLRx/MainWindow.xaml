@@ -1,0 +1,156 @@
+<Window x:Class="ElrsTtlBatchFlasher.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ELRS TTL Batch Cloner"
+        Height="760"
+        Width="1040"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <DockPanel Grid.Row="0" Margin="0,0,0,14">
+            <StackPanel>
+                <TextBlock Text="ELRS TTL Batch Cloner" FontSize="22" FontWeight="SemiBold"/>
+                <TextBlock Text="Batch flash & read clones via esptool (profiles in receivers.json)"
+                           Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0"/>
+            </StackPanel>
+
+            <Border DockPanel.Dock="Right"
+                    Background="White"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="14"
+                    Padding="14,10"
+                    Margin="12,0,0,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="OK" Foreground="{StaticResource MutedBrush}" Margin="0,0,10,0"/>
+                    <TextBlock x:Name="OkCountText" Text="0" FontSize="22" FontWeight="SemiBold"/>
+                </StackPanel>
+            </Border>
+        </DockPanel>
+
+        <!-- Settings -->
+        <GroupBox Header="Settings" Grid.Row="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="160"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="160"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Receiver" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                <ComboBox Grid.Row="0" Grid.Column="1" x:Name="ReceiverCombo" Margin="0,0,14,10"/>
+
+                <TextBlock Grid.Row="0" Grid.Column="2" Text="COM Port" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                <ComboBox Grid.Row="0" Grid.Column="3" x:Name="PortCombo" Margin="0,0,0,10"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Baud (flash)" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="1" Grid.Column="1" x:Name="BaudBox" Text="921600" Margin="0,0,14,0"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="2" Text="esptool" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="1" Grid.Column="3" x:Name="EsptoolPathBox" Text="esptool" Margin="0,0,0,0"/>
+            </Grid>
+        </GroupBox>
+
+        <!-- Files -->
+        <GroupBox Header="Files (selected per profile)" Grid.Row="2">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="160"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="52"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="app0 / app" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="0" Grid.Column="1" x:Name="AppBox" Margin="0,0,14,10"/>
+                <Button Grid.Row="0" Grid.Column="2" Content="…" Style="{StaticResource IconButton}" Margin="0,0,0,10" Click="PickApp_Click"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="nvs" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="1" Grid.Column="1" x:Name="NvsBox" Margin="0,0,14,10"/>
+                <Button Grid.Row="1" Grid.Column="2" Content="…" Style="{StaticResource IconButton}" Margin="0,0,0,10" Click="PickNvs_Click"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="otadata" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="2" Grid.Column="1" x:Name="OtaBox" Margin="0,0,14,10"/>
+                <Button Grid.Row="2" Grid.Column="2" Content="…" Style="{StaticResource IconButton}" Margin="0,0,0,10" Click="PickOta_Click"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="spiffs" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="3" Grid.Column="1" x:Name="SpiffsBox" Margin="0,0,14,10"/>
+                <Button Grid.Row="3" Grid.Column="2" Content="…" Style="{StaticResource IconButton}" Margin="0,0,0,10" Click="PickSpiffs_Click"/>
+
+                <Grid Grid.Row="4" Grid.ColumnSpan="3">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Margin="0,0,14,0">
+                        <TextBlock Text="Progress" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,6"/>
+                        <ProgressBar x:Name="Progress" Minimum="0" Maximum="100" Value="0"/>
+                    </StackPanel>
+
+                    <Button Grid.Column="1" x:Name="StartBtn" Content="Start batch" Width="150" Margin="0,18,10,0" Click="StartBtn_Click"/>
+                    <Button Grid.Column="2" x:Name="ReadCloneBtn" Content="Read clone" Width="140" Margin="0,18,10,0"
+                            Style="{StaticResource SecondaryButton}" Click="ReadCloneBtn_Click"/>
+                    <Button Grid.Column="3" x:Name="StopBtn" Content="Stop" Width="110" Margin="0,18,10,0"
+                            IsEnabled="False" Style="{StaticResource DangerButton}" Click="StopBtn_Click"/>
+                    <Button Grid.Column="4" Content="Refresh COM" Width="140" Margin="0,18,0,0"
+                            Style="{StaticResource SecondaryButton}" Click="RefreshCom_Click"/>
+                </Grid>
+            </Grid>
+        </GroupBox>
+
+        <!-- Log -->
+        <GroupBox Header="Log" Grid.Row="3">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0"
+                        Background="#FFF8FAFC"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        Padding="10,6"
+                        Margin="0,0,0,10">
+                    <TextBlock x:Name="StatusText" Text="Idle" Foreground="{StaticResource MutedBrush}"/>
+                </Border>
+
+                <TextBox x:Name="LogBox"
+                         Grid.Row="1"
+                         IsReadOnly="True"
+                         VerticalScrollBarVisibility="Auto"
+                         TextWrapping="Wrap"
+                         Background="#FF0B1220"
+                         Foreground="#FFE5E7EB"
+                         BorderBrush="#FF111827"
+                         BorderThickness="1"
+                         Padding="12"/>
+            </Grid>
+        </GroupBox>
+
+    </Grid>
+</Window>

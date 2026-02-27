@@ -1,0 +1,32 @@
+[
+  {
+    "name": "ExpressLRS RX (ESP32-C3) — MellBetta layout",
+    "chip": "esp32c3",
+    "segments": [
+      {
+        "label": "app0",
+        "offset": "0x010000",
+        "size": "0x1E0000",
+        "required": true
+      },
+      {
+        "label": "nvs",
+        "offset": "0x009000",
+        "size": "0x005000",
+        "required": true
+      },
+      {
+        "label": "otadata",
+        "offset": "0x00E000",
+        "size": "0x002000",
+        "required": true
+      },
+      {
+        "label": "spiffs",
+        "offset": "0x3D0000",
+        "size": "0x020000",
+        "required": true
+      }
+    ]
+  }
+]
