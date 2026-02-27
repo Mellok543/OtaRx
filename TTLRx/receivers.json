@@ -28,5 +28,17 @@
         "required": true
       }
     ]
+  },
+  {
+    "name": "ExpressLRS RX (ESP8285/ESP8266) — minimal layout",
+    "chip": "esp8266",
+    "segments": [
+      {
+        "label": "app",
+        "offset": "0x000000",
+        "size": "0x100000",
+        "required": true
+      }
+    ]
   }
 ]
