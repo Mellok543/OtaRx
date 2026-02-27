@@ -1,5 +1,4 @@
 using System.IO.Ports;
-using System.Text.Json;
 using Microsoft.Win32;
 using ElrsTtlBatchFlasher.Models;
 using ElrsTtlBatchFlasher.Services;
@@ -9,7 +8,15 @@ namespace ElrsTtlBatchFlasher;
 public partial class MainWindow : Window
 {
     private CancellationTokenSource? _cts;
-    private List<ReceiverProfile> _profiles = new();
+
+    private static readonly System.Windows.Media.SolidColorBrush ErrorBrush =
+        new(System.Windows.Media.Color.FromRgb(239, 68, 68));
+
+    private static readonly System.Windows.Media.SolidColorBrush SuccessBrush =
+        new(System.Windows.Media.Color.FromRgb(34, 197, 94));
+
+    private static readonly System.Windows.Media.SolidColorBrush MutedBrush =
+        new(System.Windows.Media.Color.FromRgb(100, 116, 139));
 
     public MainWindow()
     {
@@ -37,16 +44,11 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() =>
         {
             StatusText.Text = text;
-
-            if (isError)
-                StatusText.Foreground = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromRgb(239, 68, 68));
-            else if (isSuccess)
-                StatusText.Foreground = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromRgb(34, 197, 94));
-            else
-                StatusText.Foreground = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromRgb(100, 116, 139));
+            StatusText.Foreground = isError
+                ? ErrorBrush
+                : isSuccess
+                    ? SuccessBrush
+                    : MutedBrush;
         });
     }
 
@@ -93,13 +95,13 @@ public partial class MainWindow : Window
         try
         {
             var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            _profiles = ProfilesService.LoadProfiles(baseDir);
+            var profiles = ProfilesService.LoadProfiles(baseDir);
 
-            ReceiverCombo.ItemsSource = _profiles;
-            if (_profiles.Count > 0)
+            ReceiverCombo.ItemsSource = profiles;
+            if (profiles.Count > 0)
                 ReceiverCombo.SelectedIndex = 0;
 
-            Log($"Loaded profiles: {_profiles.Count}");
+            Log($"Loaded profiles: {profiles.Count}");
         }
         catch (Exception ex)
         {
@@ -226,6 +228,8 @@ public partial class MainWindow : Window
 
     private async void ReadCloneBtn_Click(object sender, RoutedEventArgs e)
     {
+        if (_cts != null) return;
+
         FlashConfig cfg;
         try
         {
@@ -247,6 +251,7 @@ public partial class MainWindow : Window
         if (folderDialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
             return;
 
+        _cts = new CancellationTokenSource();
         SetBusy(true);
         SetStatus("Reading clone...");
         SetProgress(10);
@@ -259,7 +264,7 @@ public partial class MainWindow : Window
 
             // Optional: read MAC to create subfolder
             string macText = "";
-            try { macText = await esptool.ReadMacAsync(CancellationToken.None); } catch { /* ignore */ }
+            try { macText = await esptool.ReadMacAsync(_cts.Token); } catch { /* ignore */ }
 
             var safeFolder = folderDialog.SelectedPath;
             if (!string.IsNullOrWhiteSpace(macText))
@@ -273,10 +278,16 @@ public partial class MainWindow : Window
                 }
             }
 
-            var result = await esptool.ReadCloneAsync(safeFolder, CancellationToken.None);
+            var result = await esptool.ReadCloneAsync(safeFolder, _cts.Token);
             SetProgress(100);
             SetStatus("Clone saved", isSuccess: true);
             Log(result);
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Read stopped");
+            SetProgress(0);
+            Log("Read operation canceled.");
         }
         catch (Exception ex)
         {
@@ -286,6 +297,8 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _cts.Dispose();
+            _cts = null;
             SetBusy(false);
             Log("=== END READ CLONE ===");
         }
