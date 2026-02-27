@@ -8,4 +8,12 @@
         <UseWPF>true</UseWPF>
     </PropertyGroup>
 
+    <!-- Keep the WiFi flasher project isolated from the TTLRx project files. -->
+    <ItemGroup>
+        <Compile Remove="TTLRx\**\*.cs" />
+        <Page Remove="TTLRx\**\*.xaml" />
+        <ApplicationDefinition Remove="TTLRx\**\*.xaml" />
+        <None Remove="TTLRx\**\*" />
+    </ItemGroup>
+
 </Project>
