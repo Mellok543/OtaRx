@@ -6,11 +6,26 @@ namespace RxTool
 {
     public sealed class AppConfig
     {
-        [JsonPropertyName("profiles")]
-        public List<FwProfile> Profiles { get; set; } = new();
+        [JsonPropertyName("firmwares")]
+        public List<FirmwareConfig> Firmwares { get; set; } = new();
     }
 
-    public sealed class FwProfile
+    public sealed class FirmwareConfig
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = "";
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = "";
+
+        [JsonPropertyName("upload")]
+        public UploadConfig Upload { get; set; } = new();
+
+        [JsonPropertyName("receivers")]
+        public List<ReceiverConfig> Receivers { get; set; } = new();
+    }
+
+    public sealed class ReceiverConfig
     {
         [JsonPropertyName("id")]
         public string Id { get; set; } = "";
@@ -22,7 +37,7 @@ namespace RxTool
         public WifiConfig Wifi { get; set; } = new();
 
         [JsonPropertyName("upload")]
-        public UploadConfig Upload { get; set; } = new();
+        public UploadConfig? Upload { get; set; }
 
         [JsonPropertyName("bindPhrases")]
         public List<BindPhrase> BindPhrases { get; set; } = new();
