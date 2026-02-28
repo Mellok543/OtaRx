@@ -14,7 +14,7 @@ public sealed class EsptoolService
     public async Task<(bool ok, string output)> TryChipIdAsync(CancellationToken ct)
     {
         var args = $"{BaseArgs(_cfg.DetectBaud)} --before no_reset --after no_reset chip_id";
-        var (code, outp, err) = await ProcessRunner.RunAsync(_cfg.EsptoolPath, args, ct);
+        var (code, outp, err) = await FlashRunner.RunAsync(_cfg.EsptoolPath, args, ct);
         var all = (outp + "\n" + err).Trim();
 
         var ok = code == 0 && all.Contains("Chip is", StringComparison.OrdinalIgnoreCase);
@@ -38,7 +38,7 @@ public sealed class EsptoolService
             args += $"{seg.Offset} \"{binPath}\" ";
         }
 
-        var (code, outp, err) = await ProcessRunner.RunAsync(_cfg.EsptoolPath, args, ct);
+        var (code, outp, err) = await FlashRunner.RunAsync(_cfg.EsptoolPath, args, ct);
         var all = (outp + "\n" + err).Trim();
 
         if (code != 0)
@@ -57,7 +57,7 @@ public sealed class EsptoolService
             var outFile = Path.Combine(outputDir, $"{seg.Label}.bin");
             var args = $"{BaseArgs(_cfg.Baud)} --before no_reset --after no_reset read_flash {seg.Offset} {seg.Size} \"{outFile}\"";
 
-            var (code, outp, err) = await ProcessRunner.RunAsync(_cfg.EsptoolPath, args, ct);
+            var (code, outp, err) = await FlashRunner.RunAsync(_cfg.EsptoolPath, args, ct);
             var all = (outp + "\n" + err).Trim();
             if (code != 0)
                 throw new InvalidOperationException($"Read {seg.Label} failed:\n{all}");
@@ -69,7 +69,7 @@ public sealed class EsptoolService
     public async Task<string> ReadMacAsync(CancellationToken ct)
     {
         var args = $"{BaseArgs(_cfg.DetectBaud)} --before no_reset --after no_reset read_mac";
-        var (code, outp, err) = await ProcessRunner.RunAsync(_cfg.EsptoolPath, args, ct);
+        var (code, outp, err) = await FlashRunner.RunAsync(_cfg.EsptoolPath, args, ct);
         var all = (outp + "\n" + err).Trim();
         if (code != 0) throw new InvalidOperationException(all);
         return all;
