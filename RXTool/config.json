@@ -1,26 +1,20 @@
 {
-  "upload": {
-    "url": "http://10.0.0.1/update",
-    "fileField": "upload",
-    "fileSizeHeader": "X-FileSize"
-  },
-  "receivers": [
+  "firmwares": [
     {
-      "id": "orange5beta3",
-      "name": "Orange5Beta3",
+      "id": "elrs3x",
+      "name": "ExpressLRS 3.x",
       "wifi": {
-        "ssid": "ExpressLRS RX",
-        "match": "exact",
+        "match": { "mode": "exact", "value": "ExpressLRS RX" },
         "password": "expresslrs"
       },
-      "bindPhrases": [
-        { "name": "Mell", "uid": [54, 162, 50, 25, 50, 140] },
-        { "name": "Test", "uid": [1, 2, 3, 4, 5, 6] },
-        { "name": "KOLOVRAT1", "uid": [128, 17, 162, 200, 244, 188] }
-      ],
-      "bind": {
+      "upload": {
+        "url": "http://10.0.0.1/update",
+        "fileField": "upload",
+        "fileSizeHeader": "X-FileSize"
+      },
+      "bindRequest": {
         "url": "http://10.0.0.1/config",
-        "bodyTemplate": {
+        "template": {
           "pwm": [],
           "serial-protocol": 0,
           "serial1-protocol": 0,
@@ -31,50 +25,38 @@
           "uid": "$UID6"
         }
       },
-      "domains": [
-        {
-          "name": "500/2440",
-          "url": "http://10.0.0.1/options.json",
-          "body": {
-            "freq1": 500,
-            "freq2": 2440,
-            "rateidx": 8,
-            "grid1": 10,
-            "grid2": 10,
-            "wifi-on-interval": 60,
-            "time1": 0,
-            "time2": 0,
-            "rcvr-uart-baud": 420000,
-            "lock-on-first-connection": true,
-            "flash-discriminator": 1435200097,
-            "is-airport": false,
-            "dji-permanently-armed": false,
-            "customised": true
-          },
-          "needReboot": true,
-          "rebootUrl": "http://10.0.0.1/reboot"
+      "domainRequest": {
+        "url": "http://10.0.0.1/options.json",
+        "baseBody": {
+          "rateidx": 8,
+          "grid1": 10,
+          "grid2": 10,
+          "wifi-on-interval": 60,
+          "time1": 0,
+          "time2": 0,
+          "rcvr-uart-baud": 420000,
+          "lock-on-first-connection": true,
+          "flash-discriminator": 1435200097,
+          "is-airport": false,
+          "dji-permanently-armed": false,
+          "customised": true
         },
+        "needReboot": true,
+        "rebootUrl": "http://10.0.0.1/reboot"
+      },
+      "receivers": [
         {
-          "name": "510/2440",
-          "url": "http://10.0.0.1/options.json",
-          "body": {
-            "freq1": 510,
-            "freq2": 2440,
-            "rateidx": 8,
-            "grid1": 10,
-            "grid2": 10,
-            "wifi-on-interval": 60,
-            "time1": 0,
-            "time2": 0,
-            "rcvr-uart-baud": 420000,
-            "lock-on-first-connection": true,
-            "flash-discriminator": 1435200097,
-            "is-airport": false,
-            "dji-permanently-armed": false,
-            "customised": true
-          },
-          "needReboot": true,
-          "rebootUrl": "http://10.0.0.1/reboot"
+          "id": "orange5beta3",
+          "name": "Orange5Beta3",
+          "bindPhrases": [
+            { "name": "Mell", "uid": [54, 162, 50, 25, 50, 140] },
+            { "name": "Test", "uid": [1, 2, 3, 4, 5, 6] },
+            { "name": "KOLOVRAT1", "uid": [128, 17, 162, 200, 244, 188] }
+          ],
+          "frequencies": [
+            { "name": "500/2440", "freq1": 500, "freq2": 2440 },
+            { "name": "510/2440", "freq1": 510, "freq2": 2440 }
+          ]
         }
       ]
     },
@@ -82,16 +64,17 @@
       "id": "tlrsx",
       "name": "TLRSX",
       "wifi": {
-        "ssid": "TLRSX RX",
-        "match": "startsWith",
+        "match": { "mode": "startsWith", "value": "TLRSX RX" },
         "password": "fdiMIMeT"
       },
-      "bindPhrases": [
-        { "name": "Mell", "uid": [54, 162, 50, 25, 50, 140] }
-      ],
-      "bind": {
+      "upload": {
+        "url": "http://10.0.0.1/update",
+        "fileField": "upload",
+        "fileSizeHeader": "X-FileSize"
+      },
+      "bindRequest": {
         "url": "http://10.0.0.1/config",
-        "bodyTemplate": {
+        "template": {
           "pwm": [],
           "serial-protocol": 0,
           "serial1-protocol": 0,
@@ -102,15 +85,22 @@
           "uid": "$UID6"
         }
       },
-      "domains": [
+      "domainRequest": {
+        "url": "http://10.0.0.1/options.json",
+        "baseBody": {},
+        "needReboot": true,
+        "rebootUrl": "http://10.0.0.1/reboot"
+      },
+      "receivers": [
         {
-          "name": "2400",
-          "url": "http://10.0.0.1/options.json",
-          "body": {
-            "freq2": 2400
-          },
-          "needReboot": true,
-          "rebootUrl": "http://10.0.0.1/reboot"
+          "id": "tlrsx",
+          "name": "TLRSX",
+          "bindPhrases": [
+            { "name": "Mell", "uid": [54, 162, 50, 25, 50, 140] }
+          ],
+          "frequencies": [
+            { "name": "2400", "freq2": 2400 }
+          ]
         }
       ]
     }

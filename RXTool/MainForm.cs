@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -57,7 +58,7 @@ namespace RxTool
             left.Controls.Add(new Label { Text = "Bind Phrase:", AutoSize = true, Padding = new Padding(0, 10, 0, 0) });
             left.Controls.Add(_bind);
 
-            left.Controls.Add(new Label { Text = "Частота / Regulatory Domain:", AutoSize = true, Padding = new Padding(0, 10, 0, 0) });
+            left.Controls.Add(new Label { Text = "Частота:", AutoSize = true, Padding = new Padding(0, 10, 0, 0) });
             left.Controls.Add(_domain);
 
             left.Controls.Add(new Label { Text = "Firmware (.bin):", AutoSize = true, Padding = new Padding(0, 10, 0, 0) });
@@ -107,17 +108,8 @@ namespace RxTool
 
                 if (_firmware.Items.Count > 0) _firmware.SelectedIndex = 0;
 
-                // Если конфиг в простом формате — прошивка одна общая,
-                // оставляем выбор только приемника.
-                var singleFirmware = _cfg.Firmwares.Count == 1;
-                _firmware.Enabled = !singleFirmware;
-
                 Log($"OK: Прошивок загружено: {_cfg.Firmwares.Count}");
-                Log($"");
-                Log($"");
-                Log($"");
-                Log($"");
-                Log($"Mell старается для вас)) Успешного пользования!!!!!!!");
+                Log("В прошивке задается Wi-Fi, в приемнике — только Bind Phrase и частоты.");
             }
             catch (Exception ex)
             {
@@ -136,7 +128,7 @@ namespace RxTool
 
             if (_receiver.Items.Count > 0) _receiver.SelectedIndex = 0;
 
-            Log($"Прошивка выбрана: {fw.Name} | Приемников: {fw.Receivers.Count}");
+            Log($"Прошивка выбрана: {fw.Name} | WiFi: {fw.Wifi.Match.Mode}={fw.Wifi.Match.Value}");
         }
 
         private void RefreshReceiverDependentLists()
@@ -149,10 +141,10 @@ namespace RxTool
             if (_bind.Items.Count > 0) _bind.SelectedIndex = 0;
 
             _domain.Items.Clear();
-            foreach (var d in rx.RegulatoryDomains) _domain.Items.Add(d.Name);
+            foreach (var d in rx.Frequencies) _domain.Items.Add(d.Name);
             if (_domain.Items.Count > 0) _domain.SelectedIndex = 0;
 
-            Log($"Приемник выбран: {rx.Name} | WiFi match: {rx.Wifi.Match.Mode}={rx.Wifi.Match.Value}");
+            Log($"Приемник выбран: {rx.Name} | Bind: {rx.BindPhrases.Count} | Частоты: {rx.Frequencies.Count}");
         }
 
         private void PickFirmware()
@@ -190,21 +182,18 @@ namespace RxTool
             return r.BindPhrases[idx];
         }
 
-        private RegDomain? GetDomain(ReceiverConfig r)
+        private FrequencyPreset? GetFrequency(ReceiverConfig r)
         {
             var idx = _domain.SelectedIndex;
-            if (idx < 0 || idx >= r.RegulatoryDomains.Count) return null;
-            return r.RegulatoryDomains[idx];
+            if (idx < 0 || idx >= r.Frequencies.Count) return null;
+            return r.Frequencies[idx];
         }
 
-        private static UploadConfig ResolveUpload(FirmwareConfig fw, ReceiverConfig r)
-            => r.Upload ?? fw.Upload;
-
-        private async Task<string> EnsureWifiAndPing(ReceiverConfig r, CancellationToken ct)
+        private async Task<string> EnsureWifiAndPing(FirmwareConfig fw, CancellationToken ct)
         {
-            Log("Жду сеть Wi-Fi по приемнику и подключаюсь...");
+            Log("Жду сеть Wi-Fi по прошивке и подключаюсь...");
 
-            var ssid = await WifiHelper.WaitAndConnectAsync(r.Wifi.Match, r.Wifi.Password, TimeSpan.FromMinutes(3), Log);
+            var ssid = await WifiHelper.WaitAndConnectAsync(fw.Wifi.Match, fw.Wifi.Password, TimeSpan.FromMinutes(3), Log);
             if (ssid == null) throw new Exception("Не дождался Wi-Fi сети / не смог подключиться");
 
             using var api = new RxApi();
@@ -213,6 +202,19 @@ namespace RxTool
             if (!ok) throw new Exception("RX не отвечает на http://10.0.0.1 (проверь, что подключение реально к RX)");
 
             return ssid;
+        }
+
+        private static string BuildDomainJson(FirmwareConfig fw, FrequencyPreset f)
+        {
+            var body = new Dictionary<string, JsonElement>(fw.DomainRequest.BaseBody);
+
+            if (f.Freq1.HasValue)
+                body["freq1"] = JsonSerializer.SerializeToElement(f.Freq1.Value);
+
+            if (f.Freq2.HasValue)
+                body["freq2"] = JsonSerializer.SerializeToElement(f.Freq2.Value);
+
+            return JsonSerializer.Serialize(body);
         }
 
         private void SetBusy(bool busy)
@@ -227,9 +229,6 @@ namespace RxTool
             var fw = GetFirmware();
             if (fw == null) { Log("ERROR: прошивка не выбрана"); return; }
 
-            var r = GetReceiver();
-            if (r == null) { Log("ERROR: приемник не выбран"); return; }
-
             if (string.IsNullOrWhiteSpace(_fw.Text) || !File.Exists(_fw.Text))
             {
                 Log("ERROR: выбери firmware.bin");
@@ -242,14 +241,13 @@ namespace RxTool
 
             try
             {
-                await EnsureWifiAndPing(r, _cts.Token);
+                await EnsureWifiAndPing(fw, _cts.Token);
 
                 using var api = new RxApi();
                 var prog = new Progress<int>(v => _progress.Value = Math.Clamp(v, 0, 100));
-                var upload = ResolveUpload(fw, r);
 
                 Log("Заливаю прошивку (только firmware)...");
-                await api.UploadAsync(upload, _fw.Text, Log, prog, _cts.Token);
+                await api.UploadAsync(fw.Upload, _fw.Text, Log, prog, _cts.Token);
 
                 Log("DONE: Прошивка залита.");
             }
@@ -272,14 +270,17 @@ namespace RxTool
 
         private async Task DoSetBindAndDomain()
         {
+            var fw = GetFirmware();
+            if (fw == null) { Log("ERROR: прошивка не выбрана"); return; }
+
             var r = GetReceiver();
             if (r == null) { Log("ERROR: приемник не выбран"); return; }
 
             var b = GetBindPhrase(r);
             if (b == null) { Log("ERROR: Bind Phrase не выбран"); return; }
 
-            var d = GetDomain(r);
-            if (d == null) { Log("ERROR: Regulatory Domain не выбран"); return; }
+            var f = GetFrequency(r);
+            if (f == null) { Log("ERROR: Частота не выбрана"); return; }
 
             if (b.Uid == null || b.Uid.Length != 6 || b.Uid.Any(x => x < 0 || x > 255))
             {
@@ -292,29 +293,27 @@ namespace RxTool
 
             try
             {
-                await EnsureWifiAndPing(r, _cts.Token);
+                await EnsureWifiAndPing(fw, _cts.Token);
 
                 using var api = new RxApi();
 
-                // bind json from template + UID
-                var bindJson = JsonTemplate.BuildBindJson(r.BindRequest.Template, b.Uid);
+                var bindJson = JsonTemplate.BuildBindJson(fw.BindRequest.Template, b.Uid);
                 Log($"Устанавливаю Bind Phrase: {b.Name} ...");
-                await api.PostJsonAsync(r.BindRequest.Url, bindJson, "POST bind", Log, _cts.Token);
+                await api.PostJsonAsync(fw.BindRequest.Url, bindJson, "POST bind", Log, _cts.Token);
 
-                // domain
-                var domainJson = JsonSerializer.Serialize(d.Request.Body);
-                Log($"Устанавливаю частоту/домен: {d.Name} ...");
-                await api.PostJsonAsync(d.Request.Url, domainJson, "POST domain", Log, _cts.Token);
+                var domainJson = BuildDomainJson(fw, f);
+                Log($"Устанавливаю частоту: {f.Name} ...");
+                await api.PostJsonAsync(fw.DomainRequest.Url, domainJson, "POST domain", Log, _cts.Token);
 
-                if (d.After.NeedReboot && !string.IsNullOrWhiteSpace(d.After.RebootUrl))
+                if (fw.DomainRequest.NeedReboot && !string.IsNullOrWhiteSpace(fw.DomainRequest.RebootUrl))
                 {
                     Log("Reboot...");
-                    await api.PostJsonAsync(d.After.RebootUrl, "", "POST reboot", Log, _cts.Token);
+                    await api.PostJsonAsync(fw.DomainRequest.RebootUrl, "", "POST reboot", Log, _cts.Token);
                     Log("Жду перезагрузку 15 сек...");
                     await Task.Delay(15000, _cts.Token);
                 }
 
-                Log("DONE: Bind Phrase + Domain применены.");
+                Log("DONE: Bind Phrase + частота применены.");
             }
             catch (OperationCanceledException)
             {
