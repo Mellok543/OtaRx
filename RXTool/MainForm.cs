@@ -99,13 +99,18 @@ namespace RxTool
                 }
 
                 var json = File.ReadAllText(path, Encoding.UTF8);
-                _cfg = JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
+                _cfg = AppConfig.FromJson(json);
 
                 _firmware.Items.Clear();
                 foreach (var fw in _cfg.Firmwares)
                     _firmware.Items.Add(fw.Name);
 
                 if (_firmware.Items.Count > 0) _firmware.SelectedIndex = 0;
+
+                // Если конфиг в простом формате — прошивка одна общая,
+                // оставляем выбор только приемника.
+                var singleFirmware = _cfg.Firmwares.Count == 1;
+                _firmware.Enabled = !singleFirmware;
 
                 Log($"OK: Прошивок загружено: {_cfg.Firmwares.Count}");
                 Log($"");
