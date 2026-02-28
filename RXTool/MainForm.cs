@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -11,19 +12,20 @@ namespace RxTool
 {
     public sealed class MainForm : Form
     {
-        private readonly ComboBox _profile = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 360 };
+        private readonly ComboBox _firmware = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 360 };
         private readonly ComboBox _bind = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 360 };
-        private readonly ComboBox _domain = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 360 };
+        private readonly ComboBox _receiver = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 360 };
+        private readonly ComboBox _frequency = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 360 };
 
         private readonly TextBox _fw = new() { Width = 360, ReadOnly = true };
         private readonly Button _pickFw = new() { Text = "Выбрать firmware.bin", Width = 360, Height = 30 };
 
         private readonly Button _btnFlash = new() { Text = "Залить прошивку", Width = 360, Height = 38 };
-        private readonly Button _btnSet = new() { Text = "Установить (Bind Phrase + Частота)", Width = 360, Height = 38 };
+        private readonly Button _btnSet = new() { Text = "Установить (Bind Phrase + Приемник + Частота)", Width = 360, Height = 38 };
         private readonly Button _btnStop = new() { Text = "STOP", Width = 360, Height = 30, Enabled = false };
 
         private readonly ProgressBar _progress = new() { Width = 360, Height = 18 };
-        private readonly TextBox _log = new() { Multiline = true, ScrollBars = ScrollBars.Vertical, ReadOnly = true, Width = 560, Height = 360 };
+        private readonly TextBox _log = new() { Multiline = true, ScrollBars = ScrollBars.Vertical, ReadOnly = true, Dock = DockStyle.Fill };
 
         private AppConfig _cfg = new();
         private CancellationTokenSource? _cts;
@@ -32,9 +34,10 @@ namespace RxTool
         {
             Text = "Mell Tool";
             Width = 980;
-            Height = 520;
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
+            Height = 620;
+            MinimumSize = new System.Drawing.Size(980, 620);
+            FormBorderStyle = FormBorderStyle.Sizable;
+            MaximizeBox = true;
 
             var left = new FlowLayoutPanel
             {
@@ -42,17 +45,21 @@ namespace RxTool
                 Width = 420,
                 FlowDirection = FlowDirection.TopDown,
                 WrapContents = false,
+                AutoScroll = true,
                 Padding = new Padding(12)
             };
 
-            left.Controls.Add(new Label { Text = "Прошивка/Профиль:", AutoSize = true });
-            left.Controls.Add(_profile);
+            left.Controls.Add(new Label { Text = "Прошивка:", AutoSize = true });
+            left.Controls.Add(_firmware);
 
             left.Controls.Add(new Label { Text = "Bind Phrase:", AutoSize = true, Padding = new Padding(0, 10, 0, 0) });
             left.Controls.Add(_bind);
 
-            left.Controls.Add(new Label { Text = "Частота / Regulatory Domain:", AutoSize = true, Padding = new Padding(0, 10, 0, 0) });
-            left.Controls.Add(_domain);
+            left.Controls.Add(new Label { Text = "Приемник:", AutoSize = true, Padding = new Padding(0, 10, 0, 0) });
+            left.Controls.Add(_receiver);
+
+            left.Controls.Add(new Label { Text = "Частота:", AutoSize = true, Padding = new Padding(0, 10, 0, 0) });
+            left.Controls.Add(_frequency);
 
             left.Controls.Add(new Label { Text = "Firmware (.bin):", AutoSize = true, Padding = new Padding(0, 10, 0, 0) });
             left.Controls.Add(_fw);
@@ -72,9 +79,10 @@ namespace RxTool
             Controls.Add(left);
 
             _pickFw.Click += (_, __) => PickFirmware();
-            _profile.SelectedIndexChanged += (_, __) => RefreshProfileDependentLists();
+            _firmware.SelectedIndexChanged += (_, __) => RefreshFirmwareDependentLists();
+            _receiver.SelectedIndexChanged += (_, __) => RefreshReceiverDependentLists();
             _btnFlash.Click += async (_, __) => await DoFlashOnly();
-            _btnSet.Click += async (_, __) => await DoSetBindAndDomain();
+            _btnSet.Click += async (_, __) => await DoSetBindAndReceiverRequest();
             _btnStop.Click += (_, __) => _cts?.Cancel();
 
             LoadConfig();
@@ -92,20 +100,16 @@ namespace RxTool
                 }
 
                 var json = File.ReadAllText(path, Encoding.UTF8);
-                _cfg = JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
+                _cfg = AppConfig.FromJson(json);
 
-                _profile.Items.Clear();
-                foreach (var p in _cfg.Profiles)
-                    _profile.Items.Add(p.Name);
+                _firmware.Items.Clear();
+                foreach (var fw in _cfg.Firmwares)
+                    _firmware.Items.Add(fw.Name);
 
-                if (_profile.Items.Count > 0) _profile.SelectedIndex = 0;
+                if (_firmware.Items.Count > 0) _firmware.SelectedIndex = 0;
 
-                Log($"OK: Профилей загружено: {_cfg.Profiles.Count}");
-                Log($"");
-                Log($"");
-                Log($"");
-                Log($"");
-                Log($"Mell старается для вас)) Успешного пользования!!!!!!!");
+                Log($"OK: Прошивок загружено: {_cfg.Firmwares.Count}");
+                Log("Порядок: Прошивка -> Bind Phrase -> Приемник -> Частота.");
             }
             catch (Exception ex)
             {
@@ -113,20 +117,39 @@ namespace RxTool
             }
         }
 
-        private void RefreshProfileDependentLists()
+        private void RefreshFirmwareDependentLists()
         {
-            var p = GetProfile();
-            if (p == null) return;
+            var fw = GetFirmware();
+            if (fw == null) return;
 
             _bind.Items.Clear();
-            foreach (var b in p.BindPhrases) _bind.Items.Add(b.Name);
+            foreach (var b in fw.BindPhrases)
+                _bind.Items.Add(b.Name);
             if (_bind.Items.Count > 0) _bind.SelectedIndex = 0;
 
-            _domain.Items.Clear();
-            foreach (var d in p.RegulatoryDomains) _domain.Items.Add(d.Name);
-            if (_domain.Items.Count > 0) _domain.SelectedIndex = 0;
+            _receiver.Items.Clear();
+            foreach (var rx in fw.Receivers)
+                _receiver.Items.Add(rx.Name);
+            if (_receiver.Items.Count > 0) _receiver.SelectedIndex = 0;
 
-            Log($"Профиль выбран: {p.Name} | WiFi match: {p.Wifi.Match.Mode}={p.Wifi.Match.Value}");
+            Log($"Прошивка выбрана: {fw.Name} | WiFi: {fw.Wifi.Match.Mode}={fw.Wifi.Match.Value}");
+            Log($"Bind Phrase: {fw.BindPhrases.Count} | Приемники: {fw.Receivers.Count}");
+        }
+
+        private void RefreshReceiverDependentLists()
+        {
+            var fw = GetFirmware();
+            if (fw == null) return;
+
+            var rx = GetReceiver(fw);
+            if (rx == null) return;
+
+            _frequency.Items.Clear();
+            foreach (var f in rx.Frequencies)
+                _frequency.Items.Add(f.Name);
+            if (_frequency.Items.Count > 0) _frequency.SelectedIndex = 0;
+
+            Log($"Приемник выбран: {rx.Name} | Частоты: {rx.Frequencies.Count}");
         }
 
         private void PickFirmware()
@@ -140,32 +163,39 @@ namespace RxTool
                 _fw.Text = dlg.FileName;
         }
 
-        private FwProfile? GetProfile()
+        private FirmwareConfig? GetFirmware()
         {
-            var idx = _profile.SelectedIndex;
-            if (idx < 0 || idx >= _cfg.Profiles.Count) return null;
-            return _cfg.Profiles[idx];
+            var idx = _firmware.SelectedIndex;
+            if (idx < 0 || idx >= _cfg.Firmwares.Count) return null;
+            return _cfg.Firmwares[idx];
         }
 
-        private BindPhrase? GetBindPhrase(FwProfile p)
+        private BindPhrase? GetBindPhrase(FirmwareConfig fw)
         {
             var idx = _bind.SelectedIndex;
-            if (idx < 0 || idx >= p.BindPhrases.Count) return null;
-            return p.BindPhrases[idx];
+            if (idx < 0 || idx >= fw.BindPhrases.Count) return null;
+            return fw.BindPhrases[idx];
         }
 
-        private RegDomain? GetDomain(FwProfile p)
+        private ReceiverConfig? GetReceiver(FirmwareConfig fw)
         {
-            var idx = _domain.SelectedIndex;
-            if (idx < 0 || idx >= p.RegulatoryDomains.Count) return null;
-            return p.RegulatoryDomains[idx];
+            var idx = _receiver.SelectedIndex;
+            if (idx < 0 || idx >= fw.Receivers.Count) return null;
+            return fw.Receivers[idx];
         }
 
-        private async Task<string> EnsureWifiAndPing(FwProfile p, CancellationToken ct)
+        private FrequencyPreset? GetFrequency(ReceiverConfig r)
         {
-            Log("Жду сеть Wi-Fi по профилю и подключаюсь...");
+            var idx = _frequency.SelectedIndex;
+            if (idx < 0 || idx >= r.Frequencies.Count) return null;
+            return r.Frequencies[idx];
+        }
 
-            var ssid = await WifiHelper.WaitAndConnectAsync(p.Wifi.Match, p.Wifi.Password, TimeSpan.FromMinutes(3), Log);
+        private async Task<string> EnsureWifiAndPing(FirmwareConfig fw, CancellationToken ct)
+        {
+            Log("Жду сеть Wi-Fi по прошивке и подключаюсь...");
+
+            var ssid = await WifiHelper.WaitAndConnectAsync(fw.Wifi.Match, fw.Wifi.Password, TimeSpan.FromMinutes(3), Log);
             if (ssid == null) throw new Exception("Не дождался Wi-Fi сети / не смог подключиться");
 
             using var api = new RxApi();
@@ -174,6 +204,19 @@ namespace RxTool
             if (!ok) throw new Exception("RX не отвечает на http://10.0.0.1 (проверь, что подключение реально к RX)");
 
             return ssid;
+        }
+
+        private static string BuildReceiverJson(ReceiverConfig r, FrequencyPreset f)
+        {
+            var body = new Dictionary<string, JsonElement>(r.Request.BaseBody);
+
+            if (f.Freq1.HasValue)
+                body["freq1"] = JsonSerializer.SerializeToElement(f.Freq1.Value);
+
+            if (f.Freq2.HasValue)
+                body["freq2"] = JsonSerializer.SerializeToElement(f.Freq2.Value);
+
+            return JsonSerializer.Serialize(body);
         }
 
         private void SetBusy(bool busy)
@@ -185,8 +228,8 @@ namespace RxTool
 
         private async Task DoFlashOnly()
         {
-            var p = GetProfile();
-            if (p == null) { Log("ERROR: профиль не выбран"); return; }
+            var fw = GetFirmware();
+            if (fw == null) { Log("ERROR: прошивка не выбрана"); return; }
 
             if (string.IsNullOrWhiteSpace(_fw.Text) || !File.Exists(_fw.Text))
             {
@@ -200,13 +243,13 @@ namespace RxTool
 
             try
             {
-                await EnsureWifiAndPing(p, _cts.Token);
+                await EnsureWifiAndPing(fw, _cts.Token);
 
                 using var api = new RxApi();
                 var prog = new Progress<int>(v => _progress.Value = Math.Clamp(v, 0, 100));
 
                 Log("Заливаю прошивку (только firmware)...");
-                await api.UploadAsync(p.Upload, _fw.Text, Log, prog, _cts.Token);
+                await api.UploadAsync(fw.Upload, _fw.Text, Log, prog, _cts.Token);
 
                 Log("DONE: Прошивка залита.");
             }
@@ -227,16 +270,19 @@ namespace RxTool
             }
         }
 
-        private async Task DoSetBindAndDomain()
+        private async Task DoSetBindAndReceiverRequest()
         {
-            var p = GetProfile();
-            if (p == null) { Log("ERROR: профиль не выбран"); return; }
+            var fw = GetFirmware();
+            if (fw == null) { Log("ERROR: прошивка не выбрана"); return; }
 
-            var b = GetBindPhrase(p);
+            var b = GetBindPhrase(fw);
             if (b == null) { Log("ERROR: Bind Phrase не выбран"); return; }
 
-            var d = GetDomain(p);
-            if (d == null) { Log("ERROR: Regulatory Domain не выбран"); return; }
+            var r = GetReceiver(fw);
+            if (r == null) { Log("ERROR: приемник не выбран"); return; }
+
+            var f = GetFrequency(r);
+            if (f == null) { Log("ERROR: частота не выбрана"); return; }
 
             if (b.Uid == null || b.Uid.Length != 6 || b.Uid.Any(x => x < 0 || x > 255))
             {
@@ -249,29 +295,27 @@ namespace RxTool
 
             try
             {
-                await EnsureWifiAndPing(p, _cts.Token);
+                await EnsureWifiAndPing(fw, _cts.Token);
 
                 using var api = new RxApi();
 
-                // bind json from template + UID
-                var bindJson = JsonTemplate.BuildBindJson(p.BindRequest.Template, b.Uid);
+                var bindJson = JsonTemplate.BuildBindJson(fw.BindRequest.Template, b.Uid);
                 Log($"Устанавливаю Bind Phrase: {b.Name} ...");
-                await api.PostJsonAsync(p.BindRequest.Url, bindJson, "POST bind", Log, _cts.Token);
+                await api.PostJsonAsync(fw.BindRequest.Url, bindJson, "POST bind", Log, _cts.Token);
 
-                // domain
-                var domainJson = JsonSerializer.Serialize(d.Request.Body);
-                Log($"Устанавливаю частоту/домен: {d.Name} ...");
-                await api.PostJsonAsync(d.Request.Url, domainJson, "POST domain", Log, _cts.Token);
+                var receiverJson = BuildReceiverJson(r, f);
+                Log($"Применяю приемник: {r.Name} | Частота: {f.Name} ...");
+                await api.PostJsonAsync(r.Request.Url, receiverJson, "POST receiver", Log, _cts.Token);
 
-                if (d.After.NeedReboot && !string.IsNullOrWhiteSpace(d.After.RebootUrl))
+                if (r.Request.NeedReboot && !string.IsNullOrWhiteSpace(r.Request.RebootUrl))
                 {
                     Log("Reboot...");
-                    await api.PostJsonAsync(d.After.RebootUrl, "", "POST reboot", Log, _cts.Token);
+                    await api.PostJsonAsync(r.Request.RebootUrl, "", "POST reboot", Log, _cts.Token);
                     Log("Жду перезагрузку 15 сек...");
                     await Task.Delay(15000, _cts.Token);
                 }
 
-                Log("DONE: Bind Phrase + Domain применены.");
+                Log("DONE: Bind Phrase + приемник + частота применены.");
             }
             catch (OperationCanceledException)
             {
