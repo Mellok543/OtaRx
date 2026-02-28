@@ -27,14 +27,13 @@ namespace RxTool
         [JsonPropertyName("upload")]
         public UploadConfig Upload { get; set; } = new();
 
-        // Bind запрос для всех Bind Phrase внутри одной прошивки всегда одинаковый.
+        // Bind запрос одинаковый для всех bind phrase в рамках прошивки.
         [JsonPropertyName("bindRequest")]
         public BindRequest BindRequest { get; set; } = new();
 
         [JsonPropertyName("bindPhrases")]
         public List<BindPhrase> BindPhrases { get; set; } = new();
 
-        // У каждого приемника свой body request.
         [JsonPropertyName("receivers")]
         public List<ReceiverConfig> Receivers { get; set; } = new();
     }
@@ -47,8 +46,13 @@ namespace RxTool
         [JsonPropertyName("name")]
         public string Name { get; set; } = "";
 
+        // Базовый запрос приемника (без частоты).
         [JsonPropertyName("request")]
         public ReceiverRequest Request { get; set; } = new();
+
+        // Частоты выбираются отдельно после выбора приемника.
+        [JsonPropertyName("frequencies")]
+        public List<FrequencyPreset> Frequencies { get; set; } = new();
     }
 
     public sealed class ReceiverRequest
@@ -56,14 +60,26 @@ namespace RxTool
         [JsonPropertyName("url")]
         public string Url { get; set; } = "http://10.0.0.1/options.json";
 
-        [JsonPropertyName("body")]
-        public Dictionary<string, JsonElement> Body { get; set; } = new();
+        [JsonPropertyName("baseBody")]
+        public Dictionary<string, JsonElement> BaseBody { get; set; } = new();
 
         [JsonPropertyName("needReboot")]
         public bool NeedReboot { get; set; } = true;
 
         [JsonPropertyName("rebootUrl")]
         public string RebootUrl { get; set; } = "http://10.0.0.1/reboot";
+    }
+
+    public sealed class FrequencyPreset
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = "";
+
+        [JsonPropertyName("freq1")]
+        public int? Freq1 { get; set; }
+
+        [JsonPropertyName("freq2")]
+        public int? Freq2 { get; set; }
     }
 
     public sealed class WifiConfig
@@ -78,7 +94,7 @@ namespace RxTool
     public sealed class WifiMatch
     {
         [JsonPropertyName("mode")]
-        public string Mode { get; set; } = "exact"; // exact|startsWith|regex
+        public string Mode { get; set; } = "exact";
 
         [JsonPropertyName("value")]
         public string Value { get; set; } = "";

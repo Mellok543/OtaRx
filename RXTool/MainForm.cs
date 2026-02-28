@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -14,12 +15,13 @@ namespace RxTool
         private readonly ComboBox _firmware = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 360 };
         private readonly ComboBox _bind = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 360 };
         private readonly ComboBox _receiver = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 360 };
+        private readonly ComboBox _frequency = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 360 };
 
         private readonly TextBox _fw = new() { Width = 360, ReadOnly = true };
         private readonly Button _pickFw = new() { Text = "Выбрать firmware.bin", Width = 360, Height = 30 };
 
         private readonly Button _btnFlash = new() { Text = "Залить прошивку", Width = 360, Height = 38 };
-        private readonly Button _btnSet = new() { Text = "Установить (Bind Phrase + Приемник)", Width = 360, Height = 38 };
+        private readonly Button _btnSet = new() { Text = "Установить (Bind Phrase + Приемник + Частота)", Width = 360, Height = 38 };
         private readonly Button _btnStop = new() { Text = "STOP", Width = 360, Height = 30, Enabled = false };
 
         private readonly ProgressBar _progress = new() { Width = 360, Height = 18 };
@@ -56,6 +58,9 @@ namespace RxTool
             left.Controls.Add(new Label { Text = "Приемник:", AutoSize = true, Padding = new Padding(0, 10, 0, 0) });
             left.Controls.Add(_receiver);
 
+            left.Controls.Add(new Label { Text = "Частота:", AutoSize = true, Padding = new Padding(0, 10, 0, 0) });
+            left.Controls.Add(_frequency);
+
             left.Controls.Add(new Label { Text = "Firmware (.bin):", AutoSize = true, Padding = new Padding(0, 10, 0, 0) });
             left.Controls.Add(_fw);
             left.Controls.Add(_pickFw);
@@ -75,6 +80,7 @@ namespace RxTool
 
             _pickFw.Click += (_, __) => PickFirmware();
             _firmware.SelectedIndexChanged += (_, __) => RefreshFirmwareDependentLists();
+            _receiver.SelectedIndexChanged += (_, __) => RefreshReceiverDependentLists();
             _btnFlash.Click += async (_, __) => await DoFlashOnly();
             _btnSet.Click += async (_, __) => await DoSetBindAndReceiverRequest();
             _btnStop.Click += (_, __) => _cts?.Cancel();
@@ -103,7 +109,7 @@ namespace RxTool
                 if (_firmware.Items.Count > 0) _firmware.SelectedIndex = 0;
 
                 Log($"OK: Прошивок загружено: {_cfg.Firmwares.Count}");
-                Log("Порядок: Прошивка -> Bind Phrase -> Приемник (его body request).");
+                Log("Порядок: Прошивка -> Bind Phrase -> Приемник -> Частота.");
             }
             catch (Exception ex)
             {
@@ -128,6 +134,22 @@ namespace RxTool
 
             Log($"Прошивка выбрана: {fw.Name} | WiFi: {fw.Wifi.Match.Mode}={fw.Wifi.Match.Value}");
             Log($"Bind Phrase: {fw.BindPhrases.Count} | Приемники: {fw.Receivers.Count}");
+        }
+
+        private void RefreshReceiverDependentLists()
+        {
+            var fw = GetFirmware();
+            if (fw == null) return;
+
+            var rx = GetReceiver(fw);
+            if (rx == null) return;
+
+            _frequency.Items.Clear();
+            foreach (var f in rx.Frequencies)
+                _frequency.Items.Add(f.Name);
+            if (_frequency.Items.Count > 0) _frequency.SelectedIndex = 0;
+
+            Log($"Приемник выбран: {rx.Name} | Частоты: {rx.Frequencies.Count}");
         }
 
         private void PickFirmware()
@@ -162,6 +184,13 @@ namespace RxTool
             return fw.Receivers[idx];
         }
 
+        private FrequencyPreset? GetFrequency(ReceiverConfig r)
+        {
+            var idx = _frequency.SelectedIndex;
+            if (idx < 0 || idx >= r.Frequencies.Count) return null;
+            return r.Frequencies[idx];
+        }
+
         private async Task<string> EnsureWifiAndPing(FirmwareConfig fw, CancellationToken ct)
         {
             Log("Жду сеть Wi-Fi по прошивке и подключаюсь...");
@@ -175,6 +204,19 @@ namespace RxTool
             if (!ok) throw new Exception("RX не отвечает на http://10.0.0.1 (проверь, что подключение реально к RX)");
 
             return ssid;
+        }
+
+        private static string BuildReceiverJson(ReceiverConfig r, FrequencyPreset f)
+        {
+            var body = new Dictionary<string, JsonElement>(r.Request.BaseBody);
+
+            if (f.Freq1.HasValue)
+                body["freq1"] = JsonSerializer.SerializeToElement(f.Freq1.Value);
+
+            if (f.Freq2.HasValue)
+                body["freq2"] = JsonSerializer.SerializeToElement(f.Freq2.Value);
+
+            return JsonSerializer.Serialize(body);
         }
 
         private void SetBusy(bool busy)
@@ -239,6 +281,9 @@ namespace RxTool
             var r = GetReceiver(fw);
             if (r == null) { Log("ERROR: приемник не выбран"); return; }
 
+            var f = GetFrequency(r);
+            if (f == null) { Log("ERROR: частота не выбрана"); return; }
+
             if (b.Uid == null || b.Uid.Length != 6 || b.Uid.Any(x => x < 0 || x > 255))
             {
                 Log("ERROR: UID в конфиге должен быть массивом 6 чисел 0..255");
@@ -258,8 +303,8 @@ namespace RxTool
                 Log($"Устанавливаю Bind Phrase: {b.Name} ...");
                 await api.PostJsonAsync(fw.BindRequest.Url, bindJson, "POST bind", Log, _cts.Token);
 
-                var receiverJson = JsonSerializer.Serialize(r.Request.Body);
-                Log($"Применяю запрос приемника: {r.Name} ...");
+                var receiverJson = BuildReceiverJson(r, f);
+                Log($"Применяю приемник: {r.Name} | Частота: {f.Name} ...");
                 await api.PostJsonAsync(r.Request.Url, receiverJson, "POST receiver", Log, _cts.Token);
 
                 if (r.Request.NeedReboot && !string.IsNullOrWhiteSpace(r.Request.RebootUrl))
@@ -270,7 +315,7 @@ namespace RxTool
                     await Task.Delay(15000, _cts.Token);
                 }
 
-                Log("DONE: Bind Phrase + настройки приемника применены.");
+                Log("DONE: Bind Phrase + приемник + частота применены.");
             }
             catch (OperationCanceledException)
             {
