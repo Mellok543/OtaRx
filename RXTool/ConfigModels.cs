@@ -21,21 +21,20 @@ namespace RxTool
         [JsonPropertyName("name")]
         public string Name { get; set; } = "";
 
-        // SSID/пароль задаются на уровне прошивки
         [JsonPropertyName("wifi")]
         public WifiConfig Wifi { get; set; } = new();
 
         [JsonPropertyName("upload")]
         public UploadConfig Upload { get; set; } = new();
 
-        // Общий запрос на bind для этой прошивки
+        // Bind запрос для всех Bind Phrase внутри одной прошивки всегда одинаковый.
         [JsonPropertyName("bindRequest")]
         public BindRequest BindRequest { get; set; } = new();
 
-        // Общий запрос на частоты для этой прошивки
-        [JsonPropertyName("domainRequest")]
-        public DomainRequest DomainRequest { get; set; } = new();
+        [JsonPropertyName("bindPhrases")]
+        public List<BindPhrase> BindPhrases { get; set; } = new();
 
+        // У каждого приемника свой body request.
         [JsonPropertyName("receivers")]
         public List<ReceiverConfig> Receivers { get; set; } = new();
     }
@@ -48,24 +47,23 @@ namespace RxTool
         [JsonPropertyName("name")]
         public string Name { get; set; } = "";
 
-        [JsonPropertyName("bindPhrases")]
-        public List<BindPhrase> BindPhrases { get; set; } = new();
-
-        // Для обычного пользователя только частоты
-        [JsonPropertyName("frequencies")]
-        public List<FrequencyPreset> Frequencies { get; set; } = new();
+        [JsonPropertyName("request")]
+        public ReceiverRequest Request { get; set; } = new();
     }
 
-    public sealed class FrequencyPreset
+    public sealed class ReceiverRequest
     {
-        [JsonPropertyName("name")]
-        public string Name { get; set; } = "";
+        [JsonPropertyName("url")]
+        public string Url { get; set; } = "http://10.0.0.1/options.json";
 
-        [JsonPropertyName("freq1")]
-        public int? Freq1 { get; set; }
+        [JsonPropertyName("body")]
+        public Dictionary<string, JsonElement> Body { get; set; } = new();
 
-        [JsonPropertyName("freq2")]
-        public int? Freq2 { get; set; }
+        [JsonPropertyName("needReboot")]
+        public bool NeedReboot { get; set; } = true;
+
+        [JsonPropertyName("rebootUrl")]
+        public string RebootUrl { get; set; } = "http://10.0.0.1/reboot";
     }
 
     public sealed class WifiConfig
@@ -114,20 +112,5 @@ namespace RxTool
 
         [JsonPropertyName("template")]
         public JsonElement Template { get; set; }
-    }
-
-    public sealed class DomainRequest
-    {
-        [JsonPropertyName("url")]
-        public string Url { get; set; } = "http://10.0.0.1/options.json";
-
-        [JsonPropertyName("baseBody")]
-        public Dictionary<string, JsonElement> BaseBody { get; set; } = new();
-
-        [JsonPropertyName("needReboot")]
-        public bool NeedReboot { get; set; } = true;
-
-        [JsonPropertyName("rebootUrl")]
-        public string RebootUrl { get; set; } = "http://10.0.0.1/reboot";
     }
 }
