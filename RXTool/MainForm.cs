@@ -24,7 +24,7 @@ namespace RxTool
         private readonly Button _btnStop = new() { Text = "STOP", Width = 360, Height = 30, Enabled = false };
 
         private readonly ProgressBar _progress = new() { Width = 360, Height = 18 };
-        private readonly TextBox _log = new() { Multiline = true, ScrollBars = ScrollBars.Vertical, ReadOnly = true, Width = 560, Height = 360 };
+        private readonly TextBox _log = new() { Multiline = true, ScrollBars = ScrollBars.Vertical, ReadOnly = true, Dock = DockStyle.Fill };
 
         private AppConfig _cfg = new();
         private CancellationTokenSource? _cts;
@@ -33,9 +33,10 @@ namespace RxTool
         {
             Text = "Mell Tool";
             Width = 980;
-            Height = 520;
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
+            Height = 620;
+            MinimumSize = new System.Drawing.Size(980, 620);
+            FormBorderStyle = FormBorderStyle.Sizable;
+            MaximizeBox = true;
 
             var left = new FlowLayoutPanel
             {
@@ -43,6 +44,7 @@ namespace RxTool
                 Width = 420,
                 FlowDirection = FlowDirection.TopDown,
                 WrapContents = false,
+                AutoScroll = true,
                 Padding = new Padding(12)
             };
 
